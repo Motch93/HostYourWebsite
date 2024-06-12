@@ -1,0 +1,24 @@
+
+name: Docker compose Down All Containers
+
+on:
+  workflow_dispatch:
+env:
+  INFRA_PATH_HOST: 'Websites/infrastructure'
+
+
+jobs:
+  deploy:
+    name: Deploy using ssh
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to AWS
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.AWS_HOST }}
+          username: ${{ secrets.AWS_USERNAME }}
+          key: ${{ secrets.AWS_SSH_KEY }}
+          port: ${{ secrets.AWS_SSH_PORT }}
+          script: |
+            cd ${{ env.INFRA_PATH_HOST }}
+            docker compose down

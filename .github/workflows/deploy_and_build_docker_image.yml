@@ -1,7 +1,7 @@
 name: Deploy and Build Docker image
 on:
-  push:
-    branches: [ main ]
+  #push:
+    #branches: [ main ]
   #schedule:
   #  - cron: "23 0 */28 * *" # Every Sunday 00:00 = 0 0 * * 0 # Every 29th of month = 0 0 */28 * *
   workflow_dispatch:

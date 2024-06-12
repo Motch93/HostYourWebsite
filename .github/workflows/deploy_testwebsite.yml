@@ -1,7 +1,7 @@
 name: Build and Deploy testwebsite
 
 on:
-  push:
+  #push:
     #branches: [ master ]
     #pull_request:
     # branches: [ master ]

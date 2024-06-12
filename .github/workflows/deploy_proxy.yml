@@ -2,7 +2,7 @@
 name: Deploy and start proxy
 
 on:
-  push:
+  #push:
     #branches: [ development ]
   #pull_request:
    # branches: [ master ]

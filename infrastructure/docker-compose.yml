@@ -1,0 +1,97 @@
+#version: "3.8"
+services:
+  proxy:
+    container_name: proxy
+    image: nginx_amplify:latest
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+    hostname: nginx_proxy_host
+    environment:
+      - AMPLIFY_IMAGENAME=NGINX_PROXY
+    volumes:
+      - ./nginx/nginx_proxy.conf:/etc/nginx/nginx.conf
+      - ./nginx/logrotate:/etc/logrotate.d/nginx
+      - ./nginx/conf.d/:/etc/nginx/conf.d
+      - ./nginx/logs:/var/log/nginx
+      - ./amplify/agent.conf.default:/etc/amplify-agent/agent.conf.default
+      - ./entrypoint.sh:/docker-entrypoint.sh
+      - ./letsencrypt:/etc/letsencrypt
+    ports:
+      - "80:80"
+      - "443:443"
+    entrypoint: "bash /docker-entrypoint.sh"
+    networks:
+      - nginx-network
+    command:
+      - "proxy"
+        # - tail -f /dev/null
+  testwebsite:
+    container_name: testwebsite
+    image: nginx_amplify:latest
+    hostname: testwebsite_host
+    restart: always
+    environment:
+      - AMPLIFY_IMAGENAME=TESTWEBSITE
+    volumes:
+      - ./entrypoint.sh:/docker-entrypoint.sh
+      - ./nginx/logrotate:/etc/logrotate.d/nginx
+      - ./amplify/agent.conf.default:/etc/amplify-agent/agent.conf.default
+      - ../testwebsite/toplevel/infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ../testwebsite/toplevel/infrastructure/nginx/logs:/var/log/nginx
+      - ../testwebsite/toplevel/build:/usr/share/nginx/html/testwebsite
+    networks:
+      - nginx-network
+    entrypoint: "bash /docker-entrypoint.sh"
+    expose:
+      - "8443"
+    command:
+        - "0"
+
+  sub_testwebsite:
+    container_name: sub_testwebsite
+    image: nginx_amplify:latest
+    hostname: sub_testwebsite_host
+    restart: always
+    environment:
+      - AMPLIFY_IMAGENAME=SUBTESTWEBSITE
+    volumes:
+      - ./entrypoint.sh:/docker-entrypoint.sh
+      - ./nginx/logrotate:/etc/logrotate.d/nginx
+      - ./amplify/agent.conf.default:/etc/amplify-agent/agent.conf.default
+      - ../testwebsite/sub_testwebsite/infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ../testwebsite/sub_testwebsite/infrastructure/nginx/logs:/var/log/nginx
+      - ../testwebsite/sub_testwebsite/build:/usr/share/nginx/html/subtestwebsite
+    networks:
+      - nginx-network
+    entrypoint: "bash /docker-entrypoint.sh"
+    expose:
+      - "7443"
+    command: "3"
+
+  default:
+    container_name: default
+    image: nginx_amplify:latest
+    hostname: default_host
+    restart: always
+    environment:
+      - AMPLIFY_IMAGENAME=DEFAULT
+    volumes:
+      - ./entrypoint.sh:/docker-entrypoint.sh
+      - ./nginx/logrotate:/etc/logrotate.d/nginx
+      - ./amplify/agent.conf.default:/etc/amplify-agent/agent.conf.default
+      - ./default_container/infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./default_container/infrastructure/nginx/logs:/var/log/nginx
+    networks:
+      - nginx-network
+    entrypoint: "bash /docker-entrypoint.sh"
+    expose:
+      - "1443"
+    command: "3"
+
+networks:
+  nginx-network:
+    external: false

@@ -1,0 +1,49 @@
+version: "3.8"
+services:
+  generate_ssl_test:
+    container_name: generate_ssl
+    image: nginx_amplify:latest
+    volumes:
+      - ./nginx/nginx_proxy_no_ssl.conf:/etc/nginx/nginx.conf
+      - ./entrypoint_generate_ssl.sh:/docker-entrypoint.sh
+      - ./letsencrypt:/etc/letsencrypt
+    ports:
+      - "80:80"
+      - "443:443"
+    entrypoint: "bash /docker-entrypoint.sh"
+    networks:
+      - nginx-network
+    command: "test"
+  generate_ssl_demo:
+    container_name: generate_ssl
+    image: nginx_amplify:latest
+    volumes:
+      - ./nginx/nginx_proxy_no_ssl.conf:/etc/nginx/nginx.conf
+      - ./entrypoint_generate_ssl.sh:/docker-entrypoint.sh
+      - ./letsencrypt:/etc/letsencrypt
+    ports:
+      - "80:80"
+      - "443:443"
+    entrypoint: "bash /docker-entrypoint.sh"
+    networks:
+      - nginx-network
+    command: "demo"
+  generate_ssl_prod:
+    container_name: generate_ssl
+    image: nginx_amplify:latest
+    volumes:
+      - ./nginx/nginx_proxy_no_ssl.conf:/etc/nginx/nginx.conf
+      - ./entrypoint_generate_ssl.sh:/docker-entrypoint.sh
+      - ./letsencrypt:/etc/letsencrypt
+    ports:
+      - "80:80"
+      - "443:443"
+    entrypoint: "bash /docker-entrypoint.sh"
+    networks:
+      - nginx-network
+    command: "prod"
+
+
+networks:
+  nginx-network:
+    external: false

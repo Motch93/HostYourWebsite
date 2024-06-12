@@ -1,0 +1,64 @@
+
+name: Deploy and start proxy
+
+on:
+  #push:
+    #branches: [ development ]
+  #pull_request:
+   # branches: [ master ]
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+env:
+  PATH_WORKDIR: './infrastructure'
+  TARGET_PATH: 'Websites/infrastructure'
+  CONTAINER_NAME: 'proxy'
+
+
+jobs:
+  check_changes:
+    runs-on: ubuntu-latest
+    outputs:
+      workdir: ${{ steps.filter.outputs.workdir }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo ${{ env.PATH_WORKDIR }}
+      - name: Check changes in Workdir
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          base: ${{ github.ref }}
+          filters: |
+            workdir:
+              - ${{ env.PATH_WORKDIR }}/**
+  deploy:
+    name: Deploy using ssh
+    runs-on: ubuntu-latest
+    needs: check_changes
+    if: ${{ needs.check_changes.outputs.workdir == 'true' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Copy infrastructure via SSH to EC2
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.AWS_HOST }}
+          username: ${{ secrets.AWS_USERNAME }}
+          port: ${{ secrets.AWS_SSH_PORT }}
+          key: ${{ secrets.AWS_SSH_KEY }}
+          source: ${{ env.PATH_WORKDIR }}
+          target: ${{ env.TARGET_PATH }}
+          strip_components: 2
+      - name: Sleep for 1 minutes
+        run: sleep 1s
+        shell: bash
+      - name: Deploy to AWS
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.AWS_HOST }}
+          username: ${{ secrets.AWS_USERNAME }}
+          key: ${{ secrets.AWS_SSH_KEY }}
+          port: ${{ secrets.AWS_SSH_PORT }}
+          script: |
+            cd ${{ env.TARGET_PATH }}
+            docker compose down ${{ env.CONTAINER_NAME }}
+            docker compose up -d ${{ env.CONTAINER_NAME }}

@@ -1,0 +1,103 @@
+name: Build and Deploy testwebsite
+
+on:
+  #push:
+    #branches: [ master ]
+    #pull_request:
+    # branches: [ master ]
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+env:
+  PATH_WORKDIR: 'testwebsite/toplevel'
+  TARGET_PATH: 'Websites/testwebsite/toplevel'
+  INFRA_PATH_REPO: './infrastructure'
+  INFRA_PATH_HOST: 'Websites/infrastructure'
+  CONTAINER_NAME: 'testwebsite'
+
+jobs:
+  check_changes:
+    runs-on: ubuntu-latest
+    outputs:
+      workdir: ${{ steps.filter.outputs.workdir }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo ${{ env.PATH_WORKDIR }}
+      - name: Check changes in Workdir
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          base: ${{ github.ref }}
+          filters: |
+            workdir:
+              - ${{ env.PATH_WORKDIR }}/**
+  build:
+    name: Create build
+    needs: check_changes
+    if: ${{ needs.check_changes.outputs.workdir == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: ${{ env.PATH_WORKDIR }}/package-lock.json
+      - name: Install dependencies
+        working-directory: ${{ env.PATH_WORKDIR }}
+        run: npm install
+      - name: Build Step
+        working-directory: ${{ env.PATH_WORKDIR }}
+        run: npm run build
+      - name: Upload production-ready build files # not necessary for same jobs
+        uses: actions/upload-artifact@v4
+        with:
+          if-no-files-found: error
+          name: build
+          path: ${{ env.PATH_WORKDIR }}/build # Upload directory build
+          retention-days: 1
+  deploy:
+    name: Deploy using ssh
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Download build directory from build job
+        uses: actions/download-artifact@v4
+        with:
+          name: build
+          path: ${{ env.PATH_WORKDIR }}/build
+      - name: Copy build via SSH to EC2
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.AWS_HOST }}
+          username: ${{ secrets.AWS_USERNAME }}
+          port: ${{ secrets.AWS_SSH_PORT }}
+          key: ${{ secrets.AWS_SSH_KEY }}
+          source: ${{ env.PATH_WORKDIR }}/build, ${{ env.PATH_WORKDIR }}/infrastructure
+          target: ${{ env.TARGET_PATH }}
+          strip_components: 2
+      - name: Copy infrastructure via SSH to EC2
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.AWS_HOST }}
+          username: ${{ secrets.AWS_USERNAME }}
+          port: ${{ secrets.AWS_SSH_PORT }}
+          key: ${{ secrets.AWS_SSH_KEY }}
+          source: ${{ env.INFRA_PATH_REPO }}
+          target: ${{ env.INFRA_PATH_HOST}}
+          strip_components: 2
+          #override: true
+      - name: Deploy to AWS
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.AWS_HOST }}
+          username: ${{ secrets.AWS_USERNAME }}
+          key: ${{ secrets.AWS_SSH_KEY }}
+          port: ${{ secrets.AWS_SSH_PORT }}
+          script: |
+            cd ${{ env.INFRA_PATH_HOST }}
+            docker compose down ${{ env.CONTAINER_NAME }}
+            docker compose up -d ${{ env.CONTAINER_NAME }}

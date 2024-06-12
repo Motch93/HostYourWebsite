@@ -1,0 +1,40 @@
+
+name: Deploy and generate SSL certificates Demo
+
+on:
+  workflow_dispatch:
+env:
+  PATH_WORKDIR: './infrastructure'
+  TARGET_PATH: "Websites/infrastructure"
+
+jobs:
+  deploy:
+    name: Deploy using ssh
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Copy infrastructure via SSH to EC2
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.AWS_HOST }}
+          username: ${{ secrets.AWS_USERNAME }}
+          port: ${{ secrets.AWS_SSH_PORT }}
+          key: ${{ secrets.AWS_SSH_KEY }}
+          source: ${{ env.PATH_WORKDIR }}
+          target: ${{ env.TARGET_PATH }}
+          strip_components: 2
+      - name: Deploy to AWS
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.AWS_HOST }}
+          username: ${{ secrets.AWS_USERNAME }}
+          key: ${{ secrets.AWS_SSH_KEY }}
+          port: ${{ secrets.AWS_SSH_PORT }}
+          script: |
+            cd ${{ env.TARGET_PATH }}
+            docker compose down
+            docker compose -f docker-compose_gen_ssl.yml up generate_ssl_demo
+            docker stop $(docker ps -aq)
+            docker container prune -f
+            docker compose up -d

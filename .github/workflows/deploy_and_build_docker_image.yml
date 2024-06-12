@@ -1,0 +1,65 @@
+name: Deploy and Build Docker image
+on:
+  #push:
+    #branches: [ main ]
+  #schedule:
+  #  - cron: "23 0 */28 * *" # Every Sunday 00:00 = 0 0 * * 0 # Every 29th of month = 0 0 */28 * *
+  workflow_dispatch:
+env:
+  PATH_INFRA_LOCAL: './infrastructure'
+  PATH_DOCKERFILE : './infrastructure/Dockerfile'
+  PATH_COMPOSE : './infrastructure/docker-compose.yml'
+  PATH_INFRA_AWS: 'Websites/infrastructure'
+
+jobs:
+  check_changes:
+    runs-on: ubuntu-latest
+    outputs:
+      dockerfile: ${{ steps.filter.outputs.dockerfile }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo ${{ env.PATH_INFRA_LOCAL }}/Dockerfile
+      - name: Check changes in Dockerfile
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          base: ${{ github.ref }}
+          filters: |
+            dockerfile:
+              - ${{ env.PATH_INFRA_LOCAL }}/Dockerfile
+
+  deploy_image:
+    name: Build new Docker Image
+    needs: check_changes
+    if: ${{ needs.check_changes.outputs.dockerfile == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo ${{ needs.check_changes.outputs.dockerfile }}
+      - run: echo ${{ env.PATH_INFRA_LOCAL }}
+      - name: Checkout repo
+        uses: actions/checkout@v4
+      - name: copy files via ssh key to ec2
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.AWS_HOST }}
+          username: ${{ secrets.AWS_USERNAME }}
+          port: ${{ secrets.AWS_SSH_PORT }}
+          key: ${{ secrets.AWS_SSH_KEY }}
+          source: ${{ env.PATH_DOCKERFILE }},${{ env.PATH_COMPOSE }}
+          target: ${{ env.PATH_INFRA_AWS }}/
+          strip_components: 2
+      - name: Build new docker Image
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.AWS_HOST }}
+          username: ${{ secrets.AWS_USERNAME }}
+          key: ${{ secrets.AWS_SSH_KEY }}
+          port: ${{ secrets.AWS_SSH_PORT }}
+          script: |
+            cd ${{ env.PATH_INFRA_AWS }}
+            docker stop $(docker ps -aq)
+            docker rmi -f $(docker images -aq)
+            docker build -t nginx_amplify:latest --build-arg amplify_key=${{ secrets.AMPLIFY_KEY }} .
+            docker restart $(docker ps -a -q)
+        # use restart instead of stop/prune
+
